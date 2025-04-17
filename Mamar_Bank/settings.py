@@ -31,7 +31,9 @@ DEBUG = True
 
 ALLOWED_HOSTS = ["*"]
 
-
+CSRF_TRUSTED_ORIGINS = [
+    'https://bankmanagement-e7ef.onrender.com',
+]
 # Application definition
 
 INSTALLED_APPS = [
@@ -131,6 +133,7 @@ TIME_ZONE = 'UTC'
 USE_I18N = True
 
 USE_TZ = True
+
 
 
 # Static files (CSS, JavaScript, Images)
