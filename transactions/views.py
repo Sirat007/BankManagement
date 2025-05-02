@@ -1,4 +1,5 @@
 from django.contrib import messages
+from django.db import transaction
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.urls import reverse_lazy
 from django.utils import timezone
@@ -10,11 +11,14 @@ from transactions.constants import DEPOSIT, WITHDRAWAL,LOAN, LOAN_PAID
 from django.core.mail import EmailMessage, EmailMultiAlternatives
 from django.template.loader import render_to_string
 from datetime import datetime
+from accounts.models import UserBankAccount
+from .constants import TRANSFER
 from django.db.models import Sum
 from transactions.forms import (
     DepositForm,
     WithdrawForm,
     LoanRequestForm,
+    TransferMoneyForm,
 )
 from transactions.models import Transaction
 
@@ -190,3 +194,61 @@ class LoanListView(LoginRequiredMixin,ListView):
         print(queryset)
         return queryset
     
+
+class TransferMoneyView(TransactionCreateMixin):
+    form_class = TransferMoneyForm
+    title = "Transfer Money Form"
+    
+    def get_initial(self):
+        initial = {"transaction_type": TRANSFER}
+        return initial
+    
+    def form_valid(self, form):
+        reciever_acc = form.cleaned_data.get("receiver_account")
+        amount = form.cleaned_data.get("amount")
+        
+        
+        reciever = UserBankAccount.objects.get(account_no=reciever_acc)
+        
+       
+        reciever.balance += amount
+        reciever.save(update_fields=["balance"])
+        
+       
+        sender = self.request.user.account
+        sender.balance -= amount
+        sender.save(update_fields=["balance"])
+        
+      
+        transaction = form.save(commit=False)
+        transaction.account = sender
+        transaction.balance_after_transaction = sender.balance
+        transaction.transaction_type = TRANSFER
+        transaction.save()
+        
+        
+        masked_account = f"****{str(reciever.account_no)[-4:]}"
+        
+       
+        messages.success(
+            self.request,
+            f"{amount}$ successfully transferred to account {masked_account}",
+        )
+        
+       
+        send_transaction_email(
+            self.request.user,
+            amount,
+            "Transfer Money Notification",
+            "transfer_email.html" 
+        )
+        
+       
+        # send_transaction_email(
+        #     reciever.user,
+        #     amount,
+        #     "Money Received Notification",
+        #     "received_money_email.html"  
+        # )
+        
+        return super().form_valid(form)
